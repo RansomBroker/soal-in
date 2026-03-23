@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+Bank_Soal_Generated.txt
+Bank_Soal_Generated.docx
+Soal_*.txt
+Soal_*.docx
