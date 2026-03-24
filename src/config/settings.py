@@ -27,8 +27,8 @@ DEFAULT_GENERATOR_TEMPERATURE = 0.5
 
 
 def load_config():
-    """Memuat dan mengembalikan konfigurasi environment utama."""
-    load_dotenv(override=True)
+    """Load dan validasi environment variables."""
+    load_dotenv()
     
     config = {
         "google_api_key": os.getenv("GOOGLE_API_KEY"),
@@ -36,7 +36,9 @@ def load_config():
         "pinecone_environment": os.getenv("PINECONE_ENV", "us-east-1"),
         "pinecone_index_name": os.getenv("PINECONE_INDEX_NAME", "buat-soalan-3072"),
         "batch_size": DEFAULT_BATCH_SIZE,
-        "embedding_model": DEFAULT_EMBEDDING_MODEL
+        "embedding_model": DEFAULT_EMBEDDING_MODEL,
+        "google_search_api_key": os.getenv("GOOGLE_SEARCH_API_KEY"),
+        "google_cx": os.getenv("GOOGLE_CX")
     }
     
     return config

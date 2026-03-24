@@ -27,10 +27,10 @@ def generate_questions(topic, context_text, item_count, hots_count, lots_count, 
 ### 📝 SOAL {question_type.upper()}
 1. [Teks Pertanyaan]
 
-   - [ ] [Statement/Pilihan 1]
-   - [ ] [Statement/Pilihan 2]
-   - [ ] [Statement/Pilihan 3]
-   - ..."""
+   - A. [ ] [Statement/Pilihan 1]
+   - B. [ ] [Statement/Pilihan 2]
+   - C. [ ] [Statement/Pilihan 3]
+   - ... (WAJIB awali opsi dengan abjad A, B, C.. lalu spasi dan tanda kurung siku siku `[ ]` seperti contoh! JANGAN HANYA MENULIS `- [ ]` SAJA!)"""
     elif question_type == "Benar/Salah":
         type_instruction = f"""Format: Pernyataan faktual berupa benar atau salah.
 ### 📝 SOAL {question_type.upper()}
@@ -67,23 +67,31 @@ BUATLAH {item_count} SOAL BERTIPE '{question_type}', terdiri dari:
 
 PERATURAN MUTLAK KETAT: 
 1. Fakta Teks: Semua bahan/fakta WAJIB DITARIK 100% dari KONTEKS REFERENSI di bawah. BILA topik yang ditarik sama sekali TIDAK MEMILIKI kaitan/informasi apapun di teks referensi, WAJIB tuliskan: "ERROR_404: Materi X tidak diajarkan di modul/PDF ini" dan hentikan penulisan.
-2. Filter & Format: ABAIKAN instruksi penggunaan modul. Demi menjaga agar layout tetap sempurna di Web dan Word, Anda WAJIB menggunakan karakter UNIVERSAL UNICODE Asli untuk mencetak angka rumus/kimia (Gunakan native subscript/superscript asli Contoh: `H₂O`, `x²`, `C₂H₆ → C₂H₅Cl`). PERINGATAN KERAS: DILARANG MENGGUNAKAN sintaks LaTeX (seperti `$`, `$$`, `\\rightarrow`) dan DILARANG MENGGUNAKAN karakter garis bawah `_` (seperti `H_2O`) karena akan menghancurkan kerangka Web Markdown!
+2. Filter & Format: ABAIKAN instruksi penggunaan modul. Demi menjaga agar layout tetap sempurna di Web dan Word, Anda WAJIB menggunakan karakter UNIVERSAL UNICODE Asli untuk mencetak angka rumus/kimia (Gunakan native subscript/superscript asli Contoh: `H₂O`, `x²`, `C₂H₆ → C₂H₅Cl`). PERINGATAN KERAS: DILARANG MENGGUNAKAN sintaks LaTeX (seperti `$`, `$$`, `\rightarrow`) dan DILARANG MENGGUNAKAN karakter garis bawah `_` (seperti `H_2O`) karena akan menghancurkan kerangka Web Markdown!
 3. Format Markdown UI: Agar opsi jawaban BISA DIBACA KE BAWAH bukan menyamping, WAJIB taruh ENTER KOSONG sebelum mulai Opsi A. Dan WAJIB gunakan bullet list (tanda strip `- `) pada AWAL setiap opsi jawaban, contoh: "- A. Jawaban". JANGAN PERNAH gunakan A. B. C. yang nyambung sebaris!
-4. Keseimbangan Teori & Hitungan: JIKA teks referensi mengandung Rumus, Angka, atau Studi Kasus Perhitungan, Anda WAJIB membagi porsi agar soal yang dihasilkan TIDAK HANYA TEORI, tetapi juga memuat soal HITUNGAN KUANTITATIF / penerapan rumus numerik (Sangat diwajibkan untuk soal HOTS dan Uraian Singkat)!
-5. Gaya Bahasa Ujian Independen: JANGAN PERNAH menyalin atau menggunakan frasa meta-referensi seperti "Menurut modul...", "Berdasarkan teks di atas...", "Di dalam dokumen disebutkan bahwa...", dsb. Susunlah narasi pertanyaan secara mandiri layaknya Soal Ujian Nasional yang berdiri sendiri tanpa menyinggung keberadaan 'modul' atau 'teks bacaan' di mata peserta ujian.
+4. Keseimbangan Teori & Hitungan: JIKA teks referensi mengandung Rumus, Angka, atau Studi Kasus Perhitungan, Anda WAJIB membagi porsi agar soal menghasilkan HITUNGAN KUANTITATIF!
+5. Gaya Bahasa Ujian Independen: Susunlah narasi pertanyaan secara mandiri layaknya Soal Ujian Nasional yang berdiri sendiri tanpa menyinggung keberadaan 'modul' atau 'teks bacaan' di peserta ujian.
 
 KONTEKS MATERI REFERENSI DATABASE KAMI:
 {{context_text}}
 
-OUTPUT WAJIB MENGANDUNG STRUKTUR INI SAJA (Tanpa basa-basi intro):
-
-### 📋 KISI-KISI MATERI ({question_type})
-(Tuangkan ringkasan indikator soal yang digunakan. WAJIB cantumkan Referensi Dokumen [Nama File PDF & Halaman] untuk masing-masing butir kisi-kisi sebagai Ground Truth!)
+OUTPUT WAJIB MENGANDUNG 3 STRUKTUR INI SECARA BERURUTAN (Tanpa basa-basi intro):
 
 {type_instruction}
 
-### 🎯 KUNCI JAWABAN & PEMBAHASAN DETAIL
-(Wajib berisi daftar kunci jawaban setiap nomor dan lampirkan alasan argumentatif mengapa pilihan tersebut valid merujuk pada teks referensi).
+### 🔑 KUNCI JAWABAN ({question_type})
+(WAJIB susun dalam blok Tabel Markdown persis seperti format ini)
+| No | Jawaban |
+|---|---|
+| 1 | A. Jawaban |
+...
+
+### 📋 KISI-KISI SOAL ({question_type})
+(WAJIB susun dalam blok Tabel Markdown persis seperti format ini)
+| Bagian | No | Materi | Indikator | Level |
+|---|---|---|---|---|
+| {question_type} | 1 | (Nama Topik) | (Fungsi/Deskripsi Soal) | (Mudah/Sedang/HOTS) |
+...
 """
     
     prompt = ChatPromptTemplate.from_template(template)

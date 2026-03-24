@@ -1,7 +1,11 @@
 import streamlit as st
 import math
 import io
+import re
+import requests
 from docx import Document
+from docx.shared import Inches
+from duckduckgo_search import DDGS
 from src.config.settings import load_config, set_api_keys
 from src.rag.retriever import get_context
 from src.generator.qa_generator import generate_questions
@@ -38,8 +42,12 @@ total_hots = 0
 cnt_pg, hots_pg_pct = 0, 0
 cnt_pgk, hots_pgk_pct = 0, 0
 cnt_bs, hots_bs_pct = 0, 0
+cnt_pg, hots_pg_pct = 0, 0
+cnt_pgk, hots_pgk_pct = 0, 0
+cnt_bs, hots_bs_pct = 0, 0
 cnt_jd, hots_jd_pct = 0, 0
 cnt_us, hots_us_pct = 0, 0 # Uraian Singkat
+topik_pg, topik_pgk, topik_bs, topik_jd, topik_us = "", "", "", "", ""
 pg_format = "A-E"
 
 # A) PILIHAN GANDA BIASA
@@ -51,6 +59,7 @@ if use_pg:
         pg_start = c2.text_input("Opsi Awal", "A", key="pg_start")
         pg_end = c3.text_input("Opsi Akhir", "E", key="pg_end")
         hots_pg_pct = c4.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pg")
+        topik_pg = st.text_input("Topik Khusus (Opsional)", placeholder="Contoh: Struktur Atom", key="t_pg")
         
         pg_format = f"{pg_start.upper()}-{pg_end.upper()}"
         total_soal += cnt_pg
@@ -63,6 +72,7 @@ if use_pgk:
         c1, c2 = st.columns(2)
         cnt_pgk = c1.number_input("Jumlah Soal", 1, 100, 5, key="cnt_pgk")
         hots_pgk_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pgk")
+        topik_pgk = st.text_input("Topik Khusus (Opsional)", placeholder="Contoh: Hidrokarbon", key="t_pgk")
         
         total_soal += cnt_pgk
         total_hots += math.ceil(cnt_pgk * (hots_pgk_pct / 100.0))
@@ -74,6 +84,7 @@ if use_bs:
         c1, c2 = st.columns(2)
         cnt_bs = c1.number_input("Jumlah Soal", 1, 100, 5, key="cnt_bs")
         hots_bs_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_bs")
+        topik_bs = st.text_input("Topik Khusus (Opsional)", placeholder="Topik spesifik untuk soal B/S", key="t_bs")
         
         total_soal += cnt_bs
         total_hots += math.ceil(cnt_bs * (hots_bs_pct / 100.0))
@@ -85,6 +96,7 @@ if use_jd:
         c1, c2 = st.columns(2)
         cnt_jd = c1.number_input("Jumlah Soal", 1, 50, 5, key="cnt_jd")
         hots_jd_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_jd")
+        topik_jd = st.text_input("Topik Khusus (Opsional)", placeholder="Topik spesifik untuk Menjodohkan", key="t_jd")
         
         total_soal += cnt_jd
         total_hots += math.ceil(cnt_jd * (hots_jd_pct / 100.0))
@@ -96,6 +108,7 @@ if use_us:
         c1, c2 = st.columns(2)
         cnt_us = c1.number_input("Jumlah Soal", 1, 50, 5, key="cnt_us")
         hots_us_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_us")
+        topik_us = st.text_input("Topik Khusus (Opsional)", placeholder="Fokus materi hitungan/esai", key="t_us")
         
         total_soal += cnt_us
         total_hots += math.ceil(cnt_us * (hots_us_pct / 100.0))
@@ -126,21 +139,26 @@ if st.button("🚀 Mulai Generate Bank Soal", type="primary", use_container_widt
             try:
                 st.write("🔍 Merangkum literatur referensi dengan algoritma pencarian MMR-Pinecone...")
                 
-                # Biarkan kalau user ga ketik topik, dia nyari string kosong (ambil random)
+                # Topik dasar dari parameter utama (Bila yang spesifik kosong)
                 query_topik = topik_soal if topik_soal.strip() else "Materi penting"
-                konteks_kasar = get_context(query_topik, config["pinecone_index_name"], top_k=top_k_retrieve)
                 
                 # Fungsi Helper untuk mengeksekusi AI per Tipe
-                def trigger_ai(tipe_soal, jumlah, param_hots_pct, op_length="A-E"):
+                def trigger_ai(tipe_soal, jumlah, param_hots_pct, topik_tipe="", op_length="A-E"):
                     if jumlah <= 0: return
                     
-                    st.write(f"💭 Mencetak {jumlah} Soal tipe {tipe_soal}...")
+                    # Tentukan Topik Final: Cek apakah user input topik khusus, jika tidak pakai topik global
+                    final_topik = topik_tipe if topik_tipe.strip() else query_topik
+                    
+                    st.write(f"💭 Mencetak {jumlah} Soal tipe {tipe_soal} Topik: '{final_topik}'...")
+                    
+                    # Cari referensi ke Pinecone SECARA SPESIFIK untuk topik ini!
+                    konteks_kasar = get_context(final_topik, config["pinecone_index_name"], top_k=top_k_retrieve)
                     
                     jml_hots = math.ceil(jumlah * (param_hots_pct / 100.0))
                     jml_lots = jumlah - jml_hots
                     
                     hasil = generate_questions(
-                        topic=query_topik,
+                        topic=final_topik,
                         context_text=konteks_kasar,
                         item_count=jumlah,
                         hots_count=jml_hots,
@@ -148,19 +166,20 @@ if st.button("🚀 Mulai Generate Bank Soal", type="primary", use_container_widt
                         question_type=tipe_soal,
                         pg_options=op_length
                     )
+                    
                     st.session_state["generated_results"][tipe_soal] = hasil
                 
                 # Jalankan Siklus Sesuai Ceklis User
                 if use_pg:
-                    trigger_ai("Pilihan Ganda", cnt_pg, hots_pg_pct, pg_format)
+                    trigger_ai("Pilihan Ganda", cnt_pg, hots_pg_pct, topik_pg, pg_format)
                 if use_pgk:
-                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct)
+                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct, topik_pgk)
                 if use_bs:
-                    trigger_ai("Benar/Salah", cnt_bs, hots_bs_pct)
+                    trigger_ai("Benar/Salah", cnt_bs, hots_bs_pct, topik_bs)
                 if use_jd:
-                    trigger_ai("Menjodohkan", cnt_jd, hots_jd_pct)
+                    trigger_ai("Menjodohkan", cnt_jd, hots_jd_pct, topik_jd)
                 if use_us:
-                    trigger_ai("Uraian Singkat", cnt_us, hots_us_pct)
+                    trigger_ai("Uraian Singkat", cnt_us, hots_us_pct, topik_us)
                 
                 status_box.update(label="Seluruh Soal Telah Berhasil Dicetak ke Layar Anda!", state="complete", expanded=False)
                 
@@ -175,57 +194,163 @@ if len(st.session_state["generated_results"]) > 0:
     
     import re
     
-    # Fungsi Helper Export ke Word (DOCX) + Parser LaTeX Sederhana
+    # Fungsi Helper Export ke Word (DOCX) + Parser LaTeX & Table
+    # Fungsi Helper Export ke Word (DOCX) + Parser LaTeX & Table
     def create_docx(text_content):
         doc = Document()
+        
+        in_table = False
+        table_obj = None
+        
+        def apply_tokens_to_paragraph(p, text):
+            # Memecah kalimat berdasarkan pola Bold (**), Latex Math ($), dan Gambar (![])
+            tokens = re.split(r'(\*\*.*?\*\*|\$.*?\$|!\[.*?\]\(.*?\))', text)
+            for token in tokens:
+                if not token:
+                    continue
+                if token.startswith('**') and token.endswith('**'):
+                    p.add_run(token[2:-2]).bold = True
+                elif token.startswith('![') and '](' in token and token.endswith(')'):
+                    url_start = token.find('](') + 2
+                    url = token[url_start:-1]
+                    try:
+                        resp = requests.get(url, timeout=4)
+                        if resp.status_code == 200:
+                            img_stream = io.BytesIO(resp.content)
+                            p.add_run().add_picture(img_stream, width=Inches(3.5))
+                        else:
+                            p.add_run(f"\n[Visualisasi Hilang: {url}]\n").italic = True
+                    except Exception:
+                        p.add_run(f"\n[Gagal mengunduh Visualisasi: {url}]\n").italic = True
+                elif token.startswith('$') and token.endswith('$'):
+                    math_text = token[1:-1].replace('\\rightarrow', ' → ')
+                    sub_tokens = re.split(r'(_[a-zA-Z0-9]|\^[a-zA-Z0-9]|_{[^}]+}|\^{[^{]+})', math_text)
+                    for sub in sub_tokens:
+                        if sub.startswith('_'):
+                            val = sub[1:]
+                            if val.startswith('{') and val.endswith('}'): val = val[1:-1]
+                            p.add_run(val).font.subscript = True
+                        elif sub.startswith('^'):
+                            val = sub[1:]
+                            if val.startswith('{') and val.endswith('}'): val = val[1:-1]
+                            p.add_run(val).font.superscript = True
+                        else:
+                            p.add_run(sub)
+                else:
+                    p.add_run(token)
+        
         for line in text_content.split('\n'):
             line = line.strip()
             if not line:
+                if in_table:
+                    in_table = False
+                    table_obj = None
                 doc.add_paragraph()
                 continue
+                
+            if line == "---PAGE_BREAK---":
+                if in_table:
+                    in_table = False
+                    table_obj = None
+                doc.add_page_break()
+                continue
             
-            if line.startswith('### '):
-                doc.add_heading(line.replace('### ', ''), level=3)
+            # Deteksi Markdown Table
+            if line.startswith('|') and line.endswith('|'):
+                # Abaikan baris pemisah header |---|---|
+                if re.match(r'^\|[\s\-\|]+\|$', line):
+                    continue
+                
+                cells = [c.strip() for c in line.split('|')[1:-1]]
+                
+                if not in_table:
+                    in_table = True
+                    table_obj = doc.add_table(rows=1, cols=len(cells))
+                    table_obj.style = 'Table Grid'
+                    # Isi Header
+                    hdr_cells = table_obj.rows[0].cells
+                    for i, text in enumerate(cells):
+                        if i < len(hdr_cells):
+                            # Make header bold
+                            p = hdr_cells[i].paragraphs[0]
+                            clean_text = re.sub(r'(?i)<br\s*/?>', '\n', text)
+                            apply_tokens_to_paragraph(p, f"**{clean_text.replace('**', '')}**")
+                else:
+                    # Tambah baris data
+                    row_cells = table_obj.add_row().cells
+                    for i, text in enumerate(cells):
+                        if i < len(row_cells):
+                            # Render <br> menjadi native line break di MS Word
+                            clean_text = re.sub(r'(?i)<br\s*/?>', '\n', text)
+                            p = row_cells[i].paragraphs[0]
+                            apply_tokens_to_paragraph(p, clean_text)
+                continue
+            else:
+                if in_table:
+                    in_table = False
+                    table_obj = None
+                    
+            if line.startswith('### ') or line.startswith('## '):
+                doc.add_heading(line.replace('### ', '').replace('## ', ''), level=3)
+            elif line.startswith('# '):
+                doc.add_heading(line.replace('# ', ''), level=1)
             else:
                 p = doc.add_paragraph()
                 
-                # Memecah kalimat berdasarkan pola Bold (**) dan Latex Math ($)
-                tokens = re.split(r'(\*\*.*?\*\*|\$.*?\$)', line)
+                # Pembersih Opsi A-Z Super Kuat (Menghapus minus, asterisk, atau spasi berlebih)
+                if re.match(r'^[\-\*]\s*([A-Z]\.)', line):
+                    # Match "- A.", "* B.", "-  C."
+                    line = re.sub(r'^[\-\*]\s*', '', line)
+                    p.paragraph_format.left_indent = Inches(0.2)
+                elif re.match(r'^([A-Z]\.)', line):
+                    # Terkadang AI langsung menulis "A." tanpa bullet awalan
+                    p.paragraph_format.left_indent = Inches(0.2)
+                elif re.match(r'^[\-\*]\s*\[[\sXx]\]\s*([A-Z]\.)', line):
+                    # Jika AI bandel menulis "- [ ] A."
+                    line = re.sub(r'^[\-\*]\s*\[[\sXx]\]\s*', '', line)
+                    p.paragraph_format.left_indent = Inches(0.2)
+                elif line.startswith('- ') or line.startswith('* '):
+                    # List biasa (misal poin-poin pertanyaan)
+                    p.style = 'List Bullet'
+                    line = line[2:]
                 
-                for token in tokens:
-                    if not token:
-                        continue
-                    if token.startswith('**') and token.endswith('**'):
-                        p.add_run(token[2:-2]).bold = True
-                    elif token.startswith('$') and token.endswith('$'):
-                        # Ini adalah balok Rumus Latex!
-                        math_text = token[1:-1]
-                        math_text = math_text.replace('\\rightarrow', ' → ')
-                        
-                        # Parsing Subscript (_) dan Superscript (^) dasar Regex
-                        sub_tokens = re.split(r'(_[a-zA-Z0-9]|\^[a-zA-Z0-9]|_{[^}]+}|\^{[^{]+})', math_text)
-                        for sub in sub_tokens:
-                            if sub.startswith('_'):
-                                val = sub[1:]
-                                if val.startswith('{') and val.endswith('}'): val = val[1:-1]
-                                p.add_run(val).font.subscript = True
-                            elif sub.startswith('^'):
-                                val = sub[1:]
-                                if val.startswith('{') and val.endswith('}'): val = val[1:-1]
-                                p.add_run(val).font.superscript = True
-                            else:
-                                p.add_run(sub)
-                    else:
-                        p.add_run(token) # Teks biasa
+                apply_tokens_to_paragraph(p, line)
         
         bio = io.BytesIO()
         doc.save(bio)
         return bio.getvalue()
     
-    # Bundling semua teks untuk fitur Download Master
-    master_text = "\n\n========================================\n\n".join(
-        [f"--- BAGIAN: {k.upper()} ---\n{v}" for k, v in st.session_state["generated_results"].items()]
-    )
+    # Bundling semua teks untuk fitur Download Master dengan Struktur Ujian Resmi
+    all_soal = []
+    all_kunci = []
+    all_kisi = []
+    
+    for k, v in st.session_state["generated_results"].items():
+        # Memisahkan bagian (### SOAL), (### KUNCI), dan (### KISI) via Multiline Regex penuh
+        parts = re.split(r'^(### .*?)$', v, flags=re.MULTILINE)
+        
+        current_header = None
+        for p in parts:
+            p_strip = p.strip()
+            if not p_strip: continue
+            
+            if 'SOAL' in p_strip and 'KISI' not in p_strip:
+                current_header = 'SOAL'
+                all_soal.append(f"\n**Bagian: {k.upper()}**\n")
+            elif 'KUNCI' in p_strip:
+                current_header = 'KUNCI'
+                all_kunci.append(f"\n**Bagian: {k.upper()}**\n")
+            elif 'KISI' in p_strip:
+                current_header = 'KISI'
+            else:
+                if current_header == 'SOAL':
+                    all_soal.append(p)
+                elif current_header == 'KUNCI':
+                    all_kunci.append(p)
+                elif current_header == 'KISI':
+                    all_kisi.append(p)
+
+    master_text = "# LEMBAR SOAL UJIAN\n" + "".join(all_soal) + "\n\n---PAGE_BREAK---\n\n" + "# KUNCI JAWABAN\n" + "".join(all_kunci) + "\n\n---PAGE_BREAK---\n\n" + "# KISI-KISI SOAL\n" + "".join(all_kisi)
     
     st.download_button(
         label="📥 Download Semua Soal & Kisi-Kisi (.DOCX)",
@@ -247,5 +372,5 @@ if len(st.session_state["generated_results"]) > 0:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 key=f"dl_btn_{tipe_soal}"
             )
-            st.markdown(teks_hasil)
+            st.markdown(teks_hasil, unsafe_allow_html=True)
             st.caption(f"*Soal, Kisi-kisi, dan Kemenjodohan di atas diproduksi secara eksklusif menggunakan sistem AI berdasarkan dokumen milik Anda pribadi.*")
