@@ -26,12 +26,33 @@ DEFAULT_GENERATOR_DIFFICULTY = "Menengah"
 DEFAULT_GENERATOR_TEMPERATURE = 0.5
 
 
+def get_all_google_keys():
+    """Retrieve all Google API Keys starting with GOOGLE_API_KEY inside the environment."""
+    load_dotenv()
+    keys = []
+    
+    # Utama
+    main_key = os.getenv("GOOGLE_API_KEY")
+    if main_key:
+        keys.append(main_key)
+        
+    # Cadangan (1, 2, 3...)
+    for i in range(1, 20):
+        bk_key = os.getenv(f"GOOGLE_API_KEY_{i}")
+        if bk_key and bk_key not in keys:
+            keys.append(bk_key)
+            
+    return keys
+
 def load_config():
     """Load dan validasi environment variables."""
     load_dotenv()
     
+    google_keys = get_all_google_keys()
+    
     config = {
-        "google_api_key": os.getenv("GOOGLE_API_KEY"),
+        "google_api_keys": google_keys,
+        "google_api_key": google_keys[0] if google_keys else None,
         "pinecone_api_key": os.getenv("PINECONE_API_KEY"),
         "pinecone_environment": os.getenv("PINECONE_ENV", "us-east-1"),
         "pinecone_index_name": os.getenv("PINECONE_INDEX_NAME", "buat-soalan-3072"),

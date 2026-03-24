@@ -80,3 +80,4 @@ if st.session_state.processed_files:
     st.markdown("### 📋 History File yang Telah Mengisi Memory:")
     for file_name in st.session_state.processed_files:
         st.markdown(f"- ✅ **{file_name}**")
+

@@ -19,9 +19,7 @@ Setelah semua materi terhimpun di Pinecone, rancang parameter ujian yang Anda ke
 
 # ---- KUNCI PENGAMANAN HALAMAN ----
 if "processed_files" not in st.session_state or not st.session_state.processed_files:
-    st.warning("🚫 Stop! Anda belum mengunggah Satupun Materi (PDF) ke Sistem.")
-    st.info("Silakan kembali ke halaman **Tahap 1** di menu samping untuk melakukan Setup Knowledge Base terlebih dahulu.")
-    st.stop() # Script akan berhenti disini dan tak menampilkan sisa UI bawahnya!
+    st.info("💡 **INFO HISTORI**: Kami belum melihat unggahan PDF baru di sesi login ini. Namun, sistem AI otomatis akan menarik materi dari memori database *Pinecone* jika Anda pernah mengunggahnya pada sesi atau hari-hari sebelumnya.")
 
 config = load_config()
 
@@ -42,13 +40,29 @@ total_hots = 0
 cnt_pg, hots_pg_pct = 0, 0
 cnt_pgk, hots_pgk_pct = 0, 0
 cnt_bs, hots_bs_pct = 0, 0
-cnt_pg, hots_pg_pct = 0, 0
-cnt_pgk, hots_pgk_pct = 0, 0
-cnt_bs, hots_bs_pct = 0, 0
 cnt_jd, hots_jd_pct = 0, 0
 cnt_us, hots_us_pct = 0, 0 # Uraian Singkat
 topik_pg, topik_pgk, topik_bs, topik_jd, topik_us = "", "", "", "", ""
 pg_format = "A-E"
+
+# Array penyimpan Image data dari UI
+img_pg, img_pgk, img_bs, img_jd, img_us = [], [], [], [], []
+
+def render_image_uploader(prefix, max_soal):
+    use_img = st.checkbox("Sertakan Soal Bergambar (Upload Referensi)", key=f"img_use_{prefix}")
+    img_data = []
+    if use_img:
+        up_imgs = st.file_uploader("Upload Gambar", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=f"up_{prefix}")
+        if up_imgs:
+            if len(up_imgs) > max_soal:
+                st.warning(f"⚠️ Gambar melebihi batas {max_soal} butir soal. Hanya {max_soal} gambar pertama yang digunakan.")
+                up_imgs = up_imgs[:max_soal]
+            for i, f_img in enumerate(up_imgs):
+                ctx = st.text_input(f"Topik/Konteks Maksud dari '{f_img.name}' (Opsional)", key=f"ctx_{prefix}_{i}",
+                                   placeholder="Misal: Grafik Pertumbuhan Penduduk")
+                # Simpan binernya
+                img_data.append({"name": f_img.name, "bytes": f_img.getvalue(), "context": ctx})
+    return img_data
 
 # A) PILIHAN GANDA BIASA
 use_pg = st.checkbox("Pilihan Ganda (Biasa)")
@@ -60,6 +74,7 @@ if use_pg:
         pg_end = c3.text_input("Opsi Akhir", "E", key="pg_end")
         hots_pg_pct = c4.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pg")
         topik_pg = st.text_input("Topik Khusus (Opsional)", placeholder="Contoh: Struktur Atom", key="t_pg")
+        img_pg = render_image_uploader("pg", cnt_pg)
         
         pg_format = f"{pg_start.upper()}-{pg_end.upper()}"
         total_soal += cnt_pg
@@ -73,6 +88,7 @@ if use_pgk:
         cnt_pgk = c1.number_input("Jumlah Soal", 1, 100, 5, key="cnt_pgk")
         hots_pgk_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pgk")
         topik_pgk = st.text_input("Topik Khusus (Opsional)", placeholder="Contoh: Hidrokarbon", key="t_pgk")
+        img_pgk = render_image_uploader("pgk", cnt_pgk)
         
         total_soal += cnt_pgk
         total_hots += math.ceil(cnt_pgk * (hots_pgk_pct / 100.0))
@@ -85,6 +101,7 @@ if use_bs:
         cnt_bs = c1.number_input("Jumlah Soal", 1, 100, 5, key="cnt_bs")
         hots_bs_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_bs")
         topik_bs = st.text_input("Topik Khusus (Opsional)", placeholder="Topik spesifik untuk soal B/S", key="t_bs")
+        img_bs = render_image_uploader("bs", cnt_bs)
         
         total_soal += cnt_bs
         total_hots += math.ceil(cnt_bs * (hots_bs_pct / 100.0))
@@ -97,6 +114,7 @@ if use_jd:
         cnt_jd = c1.number_input("Jumlah Soal", 1, 50, 5, key="cnt_jd")
         hots_jd_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_jd")
         topik_jd = st.text_input("Topik Khusus (Opsional)", placeholder="Topik spesifik untuk Menjodohkan", key="t_jd")
+        img_jd = render_image_uploader("jd", cnt_jd)
         
         total_soal += cnt_jd
         total_hots += math.ceil(cnt_jd * (hots_jd_pct / 100.0))
@@ -109,6 +127,7 @@ if use_us:
         cnt_us = c1.number_input("Jumlah Soal", 1, 50, 5, key="cnt_us")
         hots_us_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_us")
         topik_us = st.text_input("Topik Khusus (Opsional)", placeholder="Fokus materi hitungan/esai", key="t_us")
+        img_us = render_image_uploader("us", cnt_us)
         
         total_soal += cnt_us
         total_hots += math.ceil(cnt_us * (hots_us_pct / 100.0))
@@ -139,11 +158,13 @@ if st.button("🚀 Mulai Generate Bank Soal", type="primary", use_container_widt
             try:
                 st.write("🔍 Merangkum literatur referensi dengan algoritma pencarian MMR-Pinecone...")
                 
-                # Topik dasar dari parameter utama (Bila yang spesifik kosong)
+                import os
+                os.makedirs("temp_images", exist_ok=True)
+                
                 query_topik = topik_soal if topik_soal.strip() else "Materi penting"
                 
                 # Fungsi Helper untuk mengeksekusi AI per Tipe
-                def trigger_ai(tipe_soal, jumlah, param_hots_pct, topik_tipe="", op_length="A-E"):
+                def trigger_ai(tipe_soal, jumlah, param_hots_pct, topik_tipe="", op_length="A-E", images=[]):
                     if jumlah <= 0: return
                     
                     # Tentukan Topik Final: Cek apakah user input topik khusus, jika tidak pakai topik global
@@ -157,29 +178,52 @@ if st.button("🚀 Mulai Generate Bank Soal", type="primary", use_container_widt
                     jml_hots = math.ceil(jumlah * (param_hots_pct / 100.0))
                     jml_lots = jumlah - jml_hots
                     
+                    # Proses penyimpanan gambar sementara ke local (agar bisa diinjek ke word nanti)
+                    image_instructions = ""
+                    b64_list = []
+                    import base64
+                    if images:
+                        image_instructions = f"\n\nBERIKUT INI ADALAH DAFTAR {len(images)} GAMBAR (Dilampirkan via Multimodal Vision) YANG WAJIB ANDA JADIKAN SEBAGAI REFERENSI SOAL (Boleh untuk soal HOTS maupun LOTS):\n"
+                        for idx, img in enumerate(images):
+                            safe_name = f"{tipe_soal.replace(' ', '_')}_{idx}.png"
+                            path_file = os.path.join("temp_images", safe_name)
+                            # Write raw bytes
+                            with open(path_file, "wb") as bf:
+                                bf.write(img["bytes"])
+                                
+                            b64_str = base64.b64encode(img["bytes"]).decode('utf-8')
+                            b64_list.append(b64_str)
+                            
+                            konteks_img = img["context"] if img["context"].strip() else "Gambar ilustrasi materi relevan"
+                            image_instructions += f"- Gambar {idx+1} (Terlampir Visual): Membahas tentang '{konteks_img}'. File path: `{path_file}`\n"
+                        image_instructions += f"\nATURAN PENGGUNAAN GAMBAR: Anda menerima {len(images)} gambar referensi. Anda diizinkan untuk mengubah gambar ini menjadi soal HANYA JIKA materi dalam gambar tersebut terbukti RELEVAN dengan teks referensi Modul/PDF. Jika materi dari gambar tersebut SAMA SEKALI TIDAK ADA hubungannya dengan modul RAG, maka ABAIKAN gambar tersebut dan JANGAN jadikan soal! Sebagai gantinya, penuhi target jumlah soal Anda dengan materi murni dari teks.\n"
+                        image_instructions += "Format Wajib JIKA Anda menggunakan gambar yang relevan ke dalam soal:\n"
+                        image_instructions += "1. ![Ilustrasi](temp_images/contoh.png)\n   Berdasarkan gambar di atas, [teks pertanyaan...]\n"
+
                     hasil = generate_questions(
                         topic=final_topik,
-                        context_text=konteks_kasar,
+                        context_text=konteks_kasar + image_instructions,
                         item_count=jumlah,
                         hots_count=jml_hots,
                         lots_count=jml_lots,
                         question_type=tipe_soal,
-                        pg_options=op_length
+                        pg_options=op_length,
+                        images_b64=b64_list
                     )
                     
                     st.session_state["generated_results"][tipe_soal] = hasil
                 
                 # Jalankan Siklus Sesuai Ceklis User
                 if use_pg:
-                    trigger_ai("Pilihan Ganda", cnt_pg, hots_pg_pct, topik_pg, pg_format)
+                    trigger_ai("Pilihan Ganda", cnt_pg, hots_pg_pct, topik_pg, pg_format, img_pg)
                 if use_pgk:
-                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct, topik_pgk)
+                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct, topik_pgk, "A-E", img_pgk)
                 if use_bs:
-                    trigger_ai("Benar/Salah", cnt_bs, hots_bs_pct, topik_bs)
+                    trigger_ai("Benar/Salah", cnt_bs, hots_bs_pct, topik_bs, "A-E", img_bs)
                 if use_jd:
-                    trigger_ai("Menjodohkan", cnt_jd, hots_jd_pct, topik_jd)
+                    trigger_ai("Menjodohkan", cnt_jd, hots_jd_pct, topik_jd, "A-E", img_jd)
                 if use_us:
-                    trigger_ai("Uraian Singkat", cnt_us, hots_us_pct, topik_us)
+                    trigger_ai("Uraian Singkat", cnt_us, hots_us_pct, topik_us, "A-E", img_us)
                 
                 status_box.update(label="Seluruh Soal Telah Berhasil Dicetak ke Layar Anda!", state="complete", expanded=False)
                 
@@ -213,15 +257,31 @@ if len(st.session_state["generated_results"]) > 0:
                 elif token.startswith('![') and '](' in token and token.endswith(')'):
                     url_start = token.find('](') + 2
                     url = token[url_start:-1]
-                    try:
-                        resp = requests.get(url, timeout=4)
-                        if resp.status_code == 200:
-                            img_stream = io.BytesIO(resp.content)
-                            p.add_run().add_picture(img_stream, width=Inches(3.5))
+                    if url.startswith('http'):
+                        try:
+                            resp = requests.get(url, timeout=4)
+                            if resp.status_code == 200:
+                                img_stream = io.BytesIO(resp.content)
+                                run = p.add_run()
+                                run.add_break() # Turun ganti baris sebelum gambar
+                                run.add_picture(img_stream, width=Inches(3.5))
+                                run.add_break() # Turun baris setelah gambar
+                            else:
+                                p.add_run(f"\n[Visualisasi Hilang: {url}]\n").italic = True
+                        except Exception:
+                            p.add_run(f"\n[Gagal mengunduh Visualisasi: {url}]\n").italic = True
+                    else:
+                        import os
+                        if os.path.exists(url):
+                            try:
+                                run = p.add_run()
+                                run.add_break() # Turun ganti baris sebelum gambar
+                                run.add_picture(url, width=Inches(3.5))
+                                run.add_break() # Turun baris setelah gambar
+                            except Exception:
+                                p.add_run(f"\n[Format Gambar Lokal Rusak: {url}]\n").italic = True
                         else:
-                            p.add_run(f"\n[Visualisasi Hilang: {url}]\n").italic = True
-                    except Exception:
-                        p.add_run(f"\n[Gagal mengunduh Visualisasi: {url}]\n").italic = True
+                            p.add_run(f"\n[Gambar Lokal Hilang: {url}]\n").italic = True
                 elif token.startswith('$') and token.endswith('$'):
                     math_text = token[1:-1].replace('\\rightarrow', ' → ')
                     sub_tokens = re.split(r'(_[a-zA-Z0-9]|\^[a-zA-Z0-9]|_{[^}]+}|\^{[^{]+})', math_text)
@@ -323,10 +383,11 @@ if len(st.session_state["generated_results"]) > 0:
     # Bundling semua teks untuk fitur Download Master dengan Struktur Ujian Resmi
     all_soal = []
     all_kunci = []
+    all_pembahasan = []
     all_kisi = []
     
     for k, v in st.session_state["generated_results"].items():
-        # Memisahkan bagian (### SOAL), (### KUNCI), dan (### KISI) via Multiline Regex penuh
+        # Memisahkan bagian (### SOAL), (### KUNCI), (### PEMBAHASAN), dan (### KISI) via Multiline Regex penuh
         parts = re.split(r'^(### .*?)$', v, flags=re.MULTILINE)
         
         current_header = None
@@ -334,12 +395,15 @@ if len(st.session_state["generated_results"]) > 0:
             p_strip = p.strip()
             if not p_strip: continue
             
-            if 'SOAL' in p_strip and 'KISI' not in p_strip:
+            if 'SOAL' in p_strip and 'PEMBAHASAN' not in p_strip and 'KISI' not in p_strip:
                 current_header = 'SOAL'
                 all_soal.append(f"\n**Bagian: {k.upper()}**\n")
             elif 'KUNCI' in p_strip:
                 current_header = 'KUNCI'
                 all_kunci.append(f"\n**Bagian: {k.upper()}**\n")
+            elif 'PEMBAHASAN' in p_strip:
+                current_header = 'PEMBAHASAN'
+                all_pembahasan.append(f"\n**Bagian: {k.upper()}**\n")
             elif 'KISI' in p_strip:
                 current_header = 'KISI'
             else:
@@ -347,10 +411,12 @@ if len(st.session_state["generated_results"]) > 0:
                     all_soal.append(p)
                 elif current_header == 'KUNCI':
                     all_kunci.append(p)
+                elif current_header == 'PEMBAHASAN':
+                    all_pembahasan.append(p)
                 elif current_header == 'KISI':
                     all_kisi.append(p)
 
-    master_text = "# LEMBAR SOAL UJIAN\n" + "".join(all_soal) + "\n\n---PAGE_BREAK---\n\n" + "# KUNCI JAWABAN\n" + "".join(all_kunci) + "\n\n---PAGE_BREAK---\n\n" + "# KISI-KISI SOAL\n" + "".join(all_kisi)
+    master_text = "# LEMBAR SOAL UJIAN\n" + "".join(all_soal) + "\n\n---PAGE_BREAK---\n\n" + "# KUNCI JAWABAN\n" + "".join(all_kunci) + "\n\n---PAGE_BREAK---\n\n" + "# PEMBAHASAN SOAL\n" + "".join(all_pembahasan) + "\n\n---PAGE_BREAK---\n\n" + "# KISI-KISI SOAL\n" + "".join(all_kisi)
     
     st.download_button(
         label="📥 Download Semua Soal & Kisi-Kisi (.DOCX)",
@@ -372,5 +438,19 @@ if len(st.session_state["generated_results"]) > 0:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 key=f"dl_btn_{tipe_soal}"
             )
-            st.markdown(teks_hasil, unsafe_allow_html=True)
+            
+            # Ganti markdown lokal ke base64 untuk preview browser
+            import base64
+            import os
+            def local_img_to_b64(match):
+                alt = match.group(1)
+                path = match.group(2)
+                if not path.startswith("http") and os.path.exists(path):
+                    with open(path, "rb") as img_file:
+                        b64_str = base64.b64encode(img_file.read()).decode()
+                        return f"<br><img src='data:image/png;base64,{b64_str}' alt='{alt}' style='max-width:100%; display:block; margin: 15px 0;'><br>"
+                return match.group(0)
+
+            preview_text = re.sub(r'!\[(.*?)\]\((.*?)\)', local_img_to_b64, teks_hasil)
+            st.markdown(preview_text, unsafe_allow_html=True)
             st.caption(f"*Soal, Kisi-kisi, dan Kemenjodohan di atas diproduksi secara eksklusif menggunakan sistem AI berdasarkan dokumen milik Anda pribadi.*")

@@ -1,16 +1,15 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage
 import os
-from src.config.settings import DEFAULT_GENERATOR_MODEL, DEFAULT_GENERATOR_TEMPERATURE
+import time
+from src.config.settings import DEFAULT_GENERATOR_MODEL, DEFAULT_GENERATOR_TEMPERATURE, get_all_google_keys
 
-def generate_questions(topic, context_text, item_count, hots_count, lots_count, question_type, pg_options="A-E"):
+def generate_questions(topic, context_text, item_count, hots_count, lots_count, question_type, pg_options="A-E", images_b64=None):
     """Menggunakan LLM Gemini untuk meracik jenis soal tertentu secara spesifik (Batching)."""
-    
-    llm = ChatGoogleGenerativeAI(
-        model=DEFAULT_GENERATOR_MODEL, 
-        temperature=DEFAULT_GENERATOR_TEMPERATURE 
-    )
+    if images_b64 is None:
+        images_b64 = []
     
     # Meracik format instruksi sesuai Jenis Soal yang direquest
     type_instruction = ""
@@ -75,7 +74,7 @@ PERATURAN MUTLAK KETAT:
 KONTEKS MATERI REFERENSI DATABASE KAMI:
 {{context_text}}
 
-OUTPUT WAJIB MENGANDUNG 3 STRUKTUR INI SECARA BERURUTAN (Tanpa basa-basi intro):
+OUTPUT WAJIB MENGANDUNG 4 STRUKTUR INI SECARA BERURUTAN (Tanpa basa-basi intro):
 
 {type_instruction}
 
@@ -86,6 +85,13 @@ OUTPUT WAJIB MENGANDUNG 3 STRUKTUR INI SECARA BERURUTAN (Tanpa basa-basi intro):
 | 1 | A. Jawaban |
 ...
 
+### 💡 PEMBAHASAN SOAL ({question_type})
+(WAJIB susun dalam blok Tabel Markdown persis seperti format ini)
+| No | Pembahasan Detail |
+|---|---|
+| 1 | (Tuliskan penjelasan argumentatif/perhitungan langkah demi langkah mengapa jawaban tersebut benar) |
+...
+
 ### 📋 KISI-KISI SOAL ({question_type})
 (WAJIB susun dalam blok Tabel Markdown persis seperti format ini)
 | Bagian | No | Materi | Indikator | Level |
@@ -93,13 +99,58 @@ OUTPUT WAJIB MENGANDUNG 3 STRUKTUR INI SECARA BERURUTAN (Tanpa basa-basi intro):
 | {question_type} | 1 | (Nama Topik) | (Fungsi/Deskripsi Soal) | (Mudah/Sedang/HOTS) |
 ...
 """
+    prompt = PromptTemplate.from_template(template)
+    filled_prompt = prompt.format(context_text=context_text)
     
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | llm | StrOutputParser()
+    # ---------------------------------------------
+    # MULTIMODAL INSTRUCTION BLOCK (VISION SUPPORT)
+    # ---------------------------------------------
+    content_blocks = [{"type": "text", "text": filled_prompt}]
     
-    # Execute AI Generation Process
-    generated_result = chain.invoke({
-        "context_text": context_text
-    })
+    # Attach actual image files to the LLM context if available
+    for b64 in images_b64:
+        content_blocks.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{b64}"}
+        })
+        
+    human_msg = HumanMessage(content=content_blocks)
     
-    return generated_result
+    # Ambil seluruh API Key Cadangan
+    keys = get_all_google_keys()
+    if not keys:
+         raise Exception("❌ GOOGLE_API_KEY tidak ditemukan di .env!")
+    
+    last_err = None
+    for idx, g_key in enumerate(keys):
+        try:
+            # Re-initiate LLM untuk API Key saat ini (Multi-Key Rotator)
+            os.environ["GOOGLE_API_KEY"] = g_key
+            
+            llm = ChatGoogleGenerativeAI(
+                model=DEFAULT_GENERATOR_MODEL, 
+                temperature=DEFAULT_GENERATOR_TEMPERATURE,
+                google_api_key=g_key
+            )
+            
+            # Execute AI Generation Process
+            response = llm.invoke([human_msg])
+            
+            # Parse object respons to String
+            parser = StrOutputParser()
+            generated_result = parser.invoke(response)
+            
+            return generated_result
+            
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "429" in err_msg or "exhausted" in err_msg or "quota" in err_msg:
+                last_err = e
+                print(f"⚠️ [WARNING] Quota limit tercapai pada Key Engine ke-{idx + 1}. Mencoba failover ke Key berikutnya...")
+                time.sleep(1) # Jeda bernafas aman
+                continue
+            else:
+                raise e # Lemparkan error ke UI jika bukan masalah Quota Limit!
+                
+    # Jika loop berakhir tapi tidak pernah ter-RETURN, artinya seluruh key habis!
+    raise Exception(f"🚨 SELURUH ({len(keys)}) GOOGLE API KEY TELAH MENCAPAI BATAS LIMIT HARIAN. Silakan istirahatkan server, atau tambahkan GOOGLE_API_KEY_5 dst di file .env. Error Terakhir: {str(last_err)}")

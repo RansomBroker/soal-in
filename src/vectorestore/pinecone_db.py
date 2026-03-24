@@ -3,7 +3,9 @@ import hashlib
 import streamlit as st
 from pinecone import Pinecone, ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
-from src.config.settings import DEFAULT_DIMENSION, DEFAULT_BATCH_SIZE, DEFAULT_SLEEP_TIME
+from src.config.settings import DEFAULT_DIMENSION, DEFAULT_BATCH_SIZE, DEFAULT_SLEEP_TIME, get_all_google_keys
+from src.embeddings.gemini_embedding import get_gemini_embeddings
+import os
 
 def init_pinecone_index(api_key, environment, index_name, dimension=DEFAULT_DIMENSION):
     """Mengecek apakah index DB sudah ada. JIka belum otomatis mendirikan yang baru."""
@@ -25,7 +27,7 @@ def init_pinecone_index(api_key, environment, index_name, dimension=DEFAULT_DIME
 
 def store_to_pinecone(splits, embeddings, index_name, batch_size=DEFAULT_BATCH_SIZE, sleep_time=DEFAULT_SLEEP_TIME):
     """Store batch ke vectorstore dengan delay limit-rate safeguard dan ID Unik Anti-Duplikat."""
-    # Koneksi object store kosongan ke DB Index
+    # Koneksi awal object store ke DB Index
     vectorstore = PineconeVectorStore(
         index_name=index_name,
         embedding=embeddings
@@ -48,9 +50,42 @@ def store_to_pinecone(splits, embeddings, index_name, batch_size=DEFAULT_BATCH_S
             doc_id = hashlib.md5(fingerprint.encode('utf-8')).hexdigest()
             batch_ids.append(doc_id)
             
-        # Simpan menggunakan ID yang sudah dipatenkan
-        vectorstore.add_documents(batch_splits, ids=batch_ids)
+        # Limit Tracker untuk Multi-Key Rotate Embeddings
+        keys = get_all_google_keys()
+        if not keys: raise Exception("Tidak ada GOOGLE_API_KEY satupun di lingkungan Anda!")
         
+        last_err = None
+        success_batch = False
+        
+        for idx_k, g_key in enumerate(keys):
+            try:
+                # Re-Initialize Embedding Model untuk mem-bypass limit dengan api_key baru
+                os.environ["GOOGLE_API_KEY"] = g_key
+                fresh_embed = get_gemini_embeddings()
+                vs = PineconeVectorStore(
+                    index_name=index_name,
+                    embedding=fresh_embed
+                )
+                
+                # Simpan menggunakan ID yang sudah dipatenkan
+                vs.add_documents(batch_splits, ids=batch_ids)
+                success_batch = True
+                break
+                
+            except Exception as e:
+                err_msg = str(e).lower()
+                if "429" in err_msg or "exhausted" in err_msg or "quota" in err_msg:
+                    last_err = e
+                    embed_progress.progress(current_progress if 'current_progress' in locals() else 0, text=f"⚠️ Mengganti token (Embedding Limit). Mencoba engine-{idx_k+2}...")
+                    time.sleep(1)
+                    continue
+                else:
+                    raise e
+                    
+        if not success_batch:
+            raise Exception(f"Gagal memproses batch! Seluruh ({len(keys)}) API Key Anda telah kandas menembus limit Embeddings. Tunggu beberapa saat. Error: {str(last_err)}")
+        
+        # Hitung progress normal
         current_progress = min((j + batch_size) / len(splits), 1.0)
         embed_progress.progress(current_progress, text=f"Menyimpan batch {(j//batch_size)+1} ke VectorDB...")
         
