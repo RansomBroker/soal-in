@@ -5,7 +5,6 @@ import re
 import requests
 from docx import Document
 from docx.shared import Inches
-from duckduckgo_search import DDGS
 from src.config.settings import load_config, set_api_keys
 from src.rag.retriever import get_context
 from src.generator.qa_generator import generate_questions
