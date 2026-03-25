@@ -22,14 +22,13 @@ def generate_questions(topic, context_text, item_count, hots_count, lots_count, 
    - B. [Pilihan B]
    - ... (Sesuaikan hingga {pg_options.split('-')[1]})"""
     elif question_type == "Pilihan Ganda Kompleks":
-        type_instruction = f"""Format: Pilihan ganda kompleks di mana JAWABAN BENAR DAPAT LEBIH DARI SATU opsi.
+        type_instruction = f"""Format: Pilihan ganda kompleks di mana JAWABAN BENAR DAPAT LEBIH DARI SATU opsi. Terdiri dari opsi {pg_options}.
 ### 📝 SOAL {question_type.upper()}
 1. [Teks Pertanyaan]
 
-   - A. [ ] [Statement/Pilihan 1]
-   - B. [ ] [Statement/Pilihan 2]
-   - C. [ ] [Statement/Pilihan 3]
-   - ... (WAJIB awali opsi dengan abjad A, B, C.. lalu spasi dan tanda kurung siku siku `[ ]` seperti contoh! JANGAN HANYA MENULIS `- [ ]` SAJA!)"""
+   - {pg_options.split('-')[0]}. [ ] [Statement/Pilihan Pertama]
+   - {chr(ord(pg_options.split('-')[0]) + 1) if len(pg_options) == 3 else 'B'}. [ ] [Statement/Pilihan Kedua]
+   - ... (Lanjutkan mengurutkan abjad hingga Opsi {pg_options.split('-')[1]}. WAJIB sertakan spasi dan tanda kurung siku `[ ]` seperti contoh di setiap baris opsi)"""
     elif question_type == "Benar/Salah":
         type_instruction = f"""Format: Pernyataan faktual berupa benar atau salah.
 ### 📝 SOAL {question_type.upper()}
@@ -38,18 +37,17 @@ def generate_questions(topic, context_text, item_count, hots_count, lots_count, 
    - A. Benar
    - B. Salah"""
     elif question_type == "Menjodohkan":
-        type_instruction = f"""Format: Soal tipe menjodohkan. Sajikan {item_count} premis (soal) bernomor 1, 2, 3.. di kiri, dan sekumpulan pilihan jawaban berhuruf A, B, C.. di kanan. Sediakan LEBIH BANYAK opsi jawaban daripada premis sebagai pengecoh.
+        type_instruction = f"""Format: Soal tipe menjodohkan. Sajikan {item_count} premis (soal) di kolom kiri, dan sekumpulan pilihan jawaban berhuruf A, B, C.. di kolom kanan. Sediakan LEBIH BANYAK opsi jawaban daripada premis sebagai pengecoh. WAJIB cetak dalam format TABEL MARKDOWN!
 ### 📝 SOAL {question_type.upper()}
-**Premis/Pernyataan Kiri:**
-1. [Pernyataan 1]
-2. [Pernyataan 2]
-...
+Pasangkanlah pernyataan di kolom kiri dengan pilihan jawaban yang paling tepat di kolom kanan!
 
-**Pilihan Respon/Jawaban Kanan:**
-- A. [Jawaban Pengecoh]
-- B. [Jawaban Valid]
-- C. [Jawaban Valid]
-..."""
+| No | Pernyataan (Premis) | Pilihan Respon (Jawaban) |
+|---|---|---|
+| 1 | [Pernyataan 1] | A. [Jawaban Valid/Pengecoh] |
+| 2 | [Pernyataan 2] | B. [Jawaban Valid/Pengecoh] |
+| ... | [Lanjutkan hingga pernyataan ke-{item_count}] | C. [Jawaban Valid/Pengecoh] |
+| | | D. [Jawaban Pengecoh Ekstra] |
+| | | E. [Jawaban Pengecoh Ekstra] |"""
     elif question_type == "Uraian Singkat":
         type_instruction = f"""Format: Soal esai uraian singkat yang mengutarakan pertanyaan pemahaman mendalam, penyelesaian masalah, atau kasus hitungan angka (jika data referensinya mendukung). Tanpa satupun opsi pilihan!
 ### 📝 SOAL {question_type.upper()}

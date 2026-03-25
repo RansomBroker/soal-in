@@ -42,7 +42,7 @@ cnt_bs, hots_bs_pct = 0, 0
 cnt_jd, hots_jd_pct = 0, 0
 cnt_us, hots_us_pct = 0, 0 # Uraian Singkat
 topik_pg, topik_pgk, topik_bs, topik_jd, topik_us = "", "", "", "", ""
-pg_format = "A-E"
+pg_format, pgk_format = "A-E", "A-E"
 
 # Array penyimpan Image data dari UI
 img_pg, img_pgk, img_bs, img_jd, img_us = [], [], [], [], []
@@ -83,12 +83,15 @@ if use_pg:
 use_pgk = st.checkbox("Pilihan Ganda Kompleks (Lebih dari 1 Jawaban)")
 if use_pgk:
     with st.container(border=True):
-        c1, c2 = st.columns(2)
+        c1, c2, c3, c4 = st.columns(4)
         cnt_pgk = c1.number_input("Jumlah Soal", 1, 100, 5, key="cnt_pgk")
-        hots_pgk_pct = c2.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pgk")
+        pgk_start = c2.text_input("Opsi Awal", "A", key="pgk_start")
+        pgk_end = c3.text_input("Opsi Akhir", "E", key="pgk_end")
+        hots_pgk_pct = c4.slider("Target % HOTS", 0, 100, 10, step=5, key="hots_pgk")
         topik_pgk = st.text_input("Topik Khusus (Opsional)", placeholder="Contoh: Hidrokarbon", key="t_pgk")
         img_pgk = render_image_uploader("pgk", cnt_pgk)
         
+        pgk_format = f"{pgk_start.upper()}-{pgk_end.upper()}"
         total_soal += cnt_pgk
         total_hots += math.ceil(cnt_pgk * (hots_pgk_pct / 100.0))
 
@@ -216,7 +219,7 @@ if st.button("🚀 Mulai Generate Bank Soal", type="primary", use_container_widt
                 if use_pg:
                     trigger_ai("Pilihan Ganda", cnt_pg, hots_pg_pct, topik_pg, pg_format, img_pg)
                 if use_pgk:
-                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct, topik_pgk, "A-E", img_pgk)
+                    trigger_ai("Pilihan Ganda Kompleks", cnt_pgk, hots_pgk_pct, topik_pgk, pgk_format, img_pgk)
                 if use_bs:
                     trigger_ai("Benar/Salah", cnt_bs, hots_bs_pct, topik_bs, "A-E", img_bs)
                 if use_jd:
