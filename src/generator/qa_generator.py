@@ -37,17 +37,15 @@ def generate_questions(topic, context_text, item_count, hots_count, lots_count, 
    - A. Benar
    - B. Salah"""
     elif question_type == "Menjodohkan":
-        type_instruction = f"""Format: Soal tipe menjodohkan. Sajikan {item_count} premis (soal) di kolom kiri, dan sekumpulan pilihan jawaban berhuruf A, B, C.. di kolom kanan. Sediakan LEBIH BANYAK opsi jawaban daripada premis sebagai pengecoh. WAJIB cetak dalam format TABEL MARKDOWN!
+        type_instruction = f"""Format: Soal tipe menjodohkan. Sajikan {item_count} premis (soal) di kolom kiri, dan TEPAT {item_count} pilihan jawaban berhuruf A, B, C.. di kolom kanan. JANGAN ADA opsi pengecoh tambahan (Misal jika ada 2 soal, maka hanya ada opsi A dan B). WAJIB cetak dalam format TABEL MARKDOWN!
 ### 📝 SOAL {question_type.upper()}
 Pasangkanlah pernyataan di kolom kiri dengan pilihan jawaban yang paling tepat di kolom kanan!
 
 | No | Pernyataan (Premis) | Pilihan Respon (Jawaban) |
 |---|---|---|
-| 1 | [Pernyataan 1] | A. [Jawaban Valid/Pengecoh] |
-| 2 | [Pernyataan 2] | B. [Jawaban Valid/Pengecoh] |
-| ... | [Lanjutkan hingga pernyataan ke-{item_count}] | C. [Jawaban Valid/Pengecoh] |
-| | | D. [Jawaban Pengecoh Ekstra] |
-| | | E. [Jawaban Pengecoh Ekstra] |"""
+| 1 | [Pernyataan 1] | A. [Jawaban Acak] |
+| 2 | [Pernyataan 2] | B. [Jawaban Acak] |
+| ... | [Lanjutkan hingga pernyataan ke-{item_count}] | ... [Lanjutkan opsi jawaban hingga ke-{item_count}] |"""
     elif question_type == "Uraian Singkat":
         type_instruction = f"""Format: Soal esai uraian singkat yang mengutarakan pertanyaan pemahaman mendalam, penyelesaian masalah, atau kasus hitungan angka (jika data referensinya mendukung). Tanpa satupun opsi pilihan!
 ### 📝 SOAL {question_type.upper()}
