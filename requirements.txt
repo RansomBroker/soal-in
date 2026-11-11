@@ -7,7 +7,7 @@ google-generativeai
 supabase
 psycopg2-binary
 pgvector
-pinecone-client
+pinecone
 python-dotenv
 pypdf
 tiktoken
